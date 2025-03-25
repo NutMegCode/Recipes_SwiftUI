@@ -11,7 +11,7 @@ class Recipe: Codable, Identifiable {
     var name: String?
     var serves: Double?
     var description: String?
-    var ingredients: [Ingredient?] // Removed optional type inside array
+    var ingredients: [Ingredient?]
     var method: String?
     var isFavourite: Bool
 
@@ -26,7 +26,7 @@ class Recipe: Codable, Identifiable {
 }
 
 
-class Ingredient: Codable {
+class Ingredient: Codable, Identifiable {
     var name: String?
     var quantity: Double?
     var uom: String?
