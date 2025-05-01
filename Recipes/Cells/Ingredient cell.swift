@@ -12,8 +12,18 @@ struct IngredientCell: View {
 
     var body: some View {
         HStack {
-            Text(ingredient.name ?? "-")
+            Text(getDoubleToString(ingredient.quantity))
+                .frame(width: 50)
+
             Spacer()
+
+            Text(ingredient.uom ?? "")
+                .frame(width: 50)
+
+            Spacer()
+
+            Text(ingredient.name ?? "")
+                .frame(width: 70)
         }
     }
 }

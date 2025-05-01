@@ -15,13 +15,14 @@ struct NewRecipeView: View {
     @State private var recipeName: String = ""
     @State private var description: String = ""
     @State private var serves: String = ""
-    @State private var qty: String = ""
-    @State private var ingredients: String = ""
     @State private var method: String = ""
     
     @Environment(\.presentationMode) var presentationMode
     
     @State var isFavorite: Bool = false
+    
+    //holding state is quite tedious with extra models that seem repeated code
+    @State private var ingredientModels: [NewIngredientModel] = []
     
     var body: some View {
         
@@ -29,11 +30,9 @@ struct NewRecipeView: View {
             
             HStack {
                 
-                Spacer().frame(maxWidth: .infinity)
-
-                Text("New Recipe")
-                    .font(.system(size: 20, weight: .bold, design: .default))
-                    .frame(maxWidth: .infinity)
+                LabeledContent("Name") {
+                    TextField("", text: $recipeName).textFieldStyle(RoundedBorderTextFieldStyle())
+                }
 
                 Button(action: {
                     isFavorite.toggle()
@@ -42,41 +41,100 @@ struct NewRecipeView: View {
                         .font(.system(size: 35, weight: .regular, design: .default))
                         .tint(Color.yellow)
                 }
-                .frame(maxWidth: .infinity)
+                
             }
             .padding(.vertical, 8)
             
             
+            VStack(alignment: .leading) {
+                Text("description")
+                    .font(.headline)
+
+                TextEditor(text: $description)
+                    .frame(height: 90)
+                    .border(Color.gray.opacity(0.5))
+                    .padding(.top, 4)
+            }
+            .padding()
+
+            LabeledContent("serves") {
+                TextField("", text: $serves).textFieldStyle(RoundedBorderTextFieldStyle())
+            }
             
-            TextField("Name", text: $recipeName).textFieldStyle(RoundedBorderTextFieldStyle())
-            TextField("description", text: $description).textFieldStyle(RoundedBorderTextFieldStyle())
-            TextField("serves", text: $serves).textFieldStyle(RoundedBorderTextFieldStyle())
-            TextField("qty", text: $qty).textFieldStyle(RoundedBorderTextFieldStyle())
-            TextField("ingredients", text: $ingredients).textFieldStyle(RoundedBorderTextFieldStyle())
-            TextField("method", text: $method).textFieldStyle(RoundedBorderTextFieldStyle())
+
+            VStack(alignment: .leading) {
+                HStack{
+                    Spacer().frame(maxWidth: .infinity)
+                    
+                    Text("Ingredients")
+                    Button(action: {
+                        ingredientModels.append(NewIngredientModel())                    }) {
+                            Image(systemName: "plus.square")
+                                .font(.system(size: 20, weight: .regular, design: .default))
+                                .tint(Color.teal)
+                        }
+                        .frame(maxWidth: .infinity)
+                }
+                
+                List {
+                    ForEach(ingredientModels.indices, id: \.self) { index in
+                        NewIngredientCell(model: $ingredientModels[index])
+                    }
+                }
+                .frame(height: CGFloat(ingredientModels.count + 1) * 50)
+            }
+            
+            VStack(alignment: .leading) {
+                Text("method")
+                    .font(.headline)
+
+                TextEditor(text: $method)
+                    .frame(height: 90)
+                    .border(Color.gray.opacity(0.5))
+                    .padding(.top, 4)
+            }
+            .padding()
             
             Spacer()
             
-            Button("Save", action: {
+            Button(action: {
+                
+                let ingredients = ingredientModels.map {
+                    Ingredient(
+                        name: $0.name,
+                        quantity: Double($0.qty) ?? 0.0,
+                        uom: $0.uom
+                    )
+                }
+                
+                //for each item in the table get its Ingredient and add to the ingredients list
                 
                 recipeList.append(Recipe(name: recipeName,
                                       serves: Double(serves) ?? 0,
                                       description: description,
-                                      method: method,
+                                         ingredients: ingredients,
+                                         method: method,
                                          isFavourite: isFavorite))
                 
                 RecipeStorage().saveRecipes(recipeList)
                 
                 presentationMode.wrappedValue.dismiss()
-            })
+            }){
+                Text("Save")
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .background(Color.teal)
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+            }
+            .padding(.horizontal, 8)
             
         }.padding(20)
     }
 }
 
-#Preview {
-    
-    @Previewable @State var recipeList = [] as [Recipe]
-    
-    NewRecipeView(recipeList: $recipeList)
-}
+//#Preview {
+//    
+//    @Previewable @State var recipeList = [] as [Recipe]
+//    
+//    NewRecipeView(recipeList: $recipeList)
+//}
