@@ -8,157 +8,200 @@
 import SwiftUI
 
 struct RecipeDetailView: View {
-    
+
     @Binding var recipeList: [Recipe]
     @Binding var favourites: Favourites
-    @Binding var recipe: Recipe
-    
-    // State variables to store user input
-    
-    @Environment(\.presentationMode) var presentationMode
-    
-    @State var serves: String = ""
-    
+    @Binding var navPath: NavigationPath
+    let index: Int
+
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var serves: String = ""
+    @State private var isFavourite: Bool = false
+    @State private var showDeleteConfirm = false
+
+    // Guard against brief re-render after deletion
+    private var recipe: Recipe {
+        guard index < recipeList.count else { return Recipe() }
+        return recipeList[index]
+    }
+
     var body: some View {
-        
-        var isFavorite: Bool = recipe.isFavourite
-        
         ScrollView {
-            
             VStack(alignment: .leading, spacing: 20) {
-                
-                HStack {
-                    Button(action: {
-                        
-                        recipeList.removeAll{ $0.name == recipe.name }
-                        
-                        if recipe.isFavourite{
-                            favourites.removeFromFavourites(recipe)
-                            FavouritesStorage().saveFavorites(favourites)
+
+                // Description
+                if let desc = recipe.description, !desc.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Description")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .textCase(.uppercase)
+                        Text(desc)
+                    }
+                }
+
+                // Serves + recalculate + save
+                HStack(spacing: 12) {
+                    Text("Serves")
+                    TextField("Serves", text: $serves)
+                        .textFieldStyle(.roundedBorder)
+                        .keyboardType(.decimalPad)
+                        .frame(width: 80)
+                    Button {
+                        recalculate()
+                    } label: {
+                        Image(systemName: "arrow.trianglehead.counterclockwise")
+                            .foregroundColor(.teal)
+                    }
+                    Button {
+                        save()
+                    } label: {
+                        Image(systemName: "square.and.arrow.down")
+                            .foregroundColor(.teal)
+                    }
+                }
+
+                // Ingredients
+                if !recipe.ingredients.compactMap({ $0 }).isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Ingredients")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .textCase(.uppercase)
+                        ForEach(recipe.ingredients.compactMap { $0 }, id: \.id) { ingredient in
+                            IngredientCell(ingredient: ingredient)
+                            Divider()
                         }
-                        
-                        RecipeStorage().saveRecipes(recipeList)
-                    }) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 25, weight: .regular, design: .default))
-                            .tint(Color.red)
                     }
-                    .frame(maxWidth: .infinity)
-                    
-                    Text(recipe.name ?? "Recipe")
-                        .font(.system(size: 20, weight: .bold, design: .default))
-                        .frame(maxWidth: .infinity)
-                    
-                    Button(action: {
-                        isFavorite.toggle()
-                    }) {
-                        Image(systemName: isFavorite ? "star.fill" : "star")
-                            .font(.system(size: 35, weight: .regular, design: .default))
-                            .tint(Color.yellow)
+                }
+
+                // Tools
+                if !recipe.tools.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Tools")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .textCase(.uppercase)
+                        ForEach(recipe.tools.indices, id: \.self) { i in
+                            Text(recipe.tools[i])
+                            Divider()
+                        }
                     }
-                    .frame(maxWidth: .infinity)
                 }
-                .padding(.vertical, 8)
-                
-                VStack(alignment: .leading)  {
-                    Text("description")
-                    Text(recipe.description ?? "-")
-                }
-                
-                HStack {
-                    Text("serves")
-                    TextField("serves", text: $serves).textFieldStyle(RoundedBorderTextFieldStyle()).frame(width: 100).padding(8)
-                    Button(action: {
-                        
-                        let ingredientsList = recipe.ingredients
-                        let servesDouble = Double(serves) ?? 0.00
-                        let floatServes = Float(serves) ?? 0.00
-                        
-                        let decimalServes = Decimal(servesDouble)
-                        
-                        for ingredient in ingredientsList {
-                            if let quantityPerOneServe = ingredient?.quantityPerOneServe {
-                                
-                                //this stuff should demonstrate the different precisions of each data type. becuase Swift uses the IEEE standard there can be some imprecision with certain numbers
-                                //to best demonstrate the imprecision create a recipe with 1 serve and an item with 0.1 quantity. then after saving recalculate with 0.2 serves.
-                                let doubleResult = NSDecimalNumber(decimal: quantityPerOneServe).doubleValue * servesDouble
-                                debugPrint("Double result   \(ingredient?.name ?? ""):\(String(format: "%.20f", doubleResult))")
-                                
-                                let floatResult = NSDecimalNumber(decimal: quantityPerOneServe).floatValue * floatServes
-                                debugPrint("Float result    \(ingredient?.name ?? ""): \(String(format: "%.20f", floatResult))")
-                                
-                                let formatter = NumberFormatter()
-                                formatter.numberStyle = .decimal
-                                formatter.minimumFractionDigits = 20
-                                formatter.maximumFractionDigits = 20
-                                
-                                let decimalResult = quantityPerOneServe * decimalServes
-                                if let formattedDecimal = formatter.string(from: decimalResult as NSDecimalNumber) {
-                                    debugPrint("Decimal result  \(ingredient?.name ?? ""): \(formattedDecimal)")
-                                }
-                                
-                                debugPrint("==============================")
-                                
-                                ingredient?.quantity = doubleResult
-                                
+
+                // Method
+                if !recipe.method.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Method")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .textCase(.uppercase)
+                        ForEach(recipe.method.indices, id: \.self) { i in
+                            HStack(alignment: .top, spacing: 10) {
+                                Text("\(i + 1).")
+                                    .foregroundColor(.secondary)
+                                    .frame(width: 24, alignment: .trailing)
+                                Text(recipe.method[i])
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
-                        
-                        
-                    }) {
-                        Image(systemName: "arrow.trianglehead.counterclockwise")
-                            .font(.system(size: 20, weight: .regular, design: .default))
-                            .tint(Color.cyan)
                     }
                 }
-                
-                VStack(alignment: .leading) {
-                    Text("ingredients")
-                    
-                    ForEach(recipe.ingredients.compactMap { $0 }) { ingredient in
-                        IngredientCell(ingredient: ingredient)
-                            .frame(maxHeight: CGFloat(recipe.ingredients.count) * 50)
-                    }
-                }
-                
-                VStack(alignment: .leading)  {
-                    Text("method")
-                    Text(recipe.method ?? "-")
-                }
-                
-                Spacer()
-                
 
-                
-            }.padding(20)
-                .onAppear {
-                    // Initialize the `serves` state when the view appears
-                    serves = getDoubleToString(recipe.serves)
+                Spacer(minLength: 20)
+            }
+            .padding(20)
+        }
+        .navigationTitle(recipe.name ?? "Recipe")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                // Favourite star
+                Button {
+                    isFavourite.toggle()
+                } label: {
+                    Image(systemName: isFavourite ? "star.fill" : "star")
+                        .foregroundColor(isFavourite ? .yellow : .gray)
                 }
-        }
-        
-        Button(action: {
 
-            
-        }){
-            Text("Save")
-                .frame(maxWidth: .infinity, minHeight: 50)
-                .background(Color.teal)
-                .foregroundColor(.white)
-                .cornerRadius(8)
+                // Delete
+                Button {
+                    showDeleteConfirm = true
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundColor(.red)
+                }
+
+                // Edit
+                Button {
+                    navPath.append(AppRoute.editRecipe(recipe.id))
+                } label: {
+                    Image(systemName: "pencil")
+                        .foregroundColor(.teal)
+                }
+            }
         }
-        .padding(.horizontal, 8)
+        .alert("Delete \(recipe.name ?? "this recipe")?", isPresented: $showDeleteConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) { deleteRecipe() }
+        } message: {
+            Text("This cannot be undone.")
+        }
+        .onAppear {
+            serves = getDoubleToString(recipe.serves)
+            isFavourite = recipe.isFavourite
+        }
     }
-    
+
+    // MARK: - Actions
+
+    private func recalculate() {
+        guard let newServes = Double(serves) else { return }
+        let decimalServes = Decimal(newServes)
+        for ingredient in recipe.ingredients {
+            if let q = ingredient?.quantityPerOneServe {
+                let doubleResult = NSDecimalNumber(decimal: q).doubleValue * newServes
+                debugPrint("Double result   \(ingredient?.name ?? ""): \(String(format: "%.20f", doubleResult))")
+                let decimalResult = q * decimalServes
+                debugPrint("Decimal result  \(ingredient?.name ?? ""): \(decimalResult)")
+                ingredient?.quantity = doubleResult
+            }
+        }
+        recipeList = recipeList // trigger re-render
+    }
+
+    private func save() {
+        let originalFavourite = recipe.isFavourite
+        if originalFavourite != isFavourite {
+            if isFavourite {
+                favourites.addToFavourites(recipe)
+            } else {
+                favourites.removeFromFavourites(recipe)
+            }
+        }
+        recipe.serves = Double(serves)
+        RecipeStorage().saveRecipes(recipeList)
+        FavouritesStorage().saveFavorites(favourites)
+        dismiss()
+    }
+
+    private func deleteRecipe() {
+        let toDelete = recipe
+        if toDelete.isFavourite { favourites.removeFromFavourites(toDelete) }
+        recipeList.remove(at: index)
+        RecipeStorage().saveRecipes(recipeList)
+        FavouritesStorage().saveFavorites(favourites)
+        dismiss()
+    }
 }
 
 #Preview {
-    
-    @Previewable @State var recipeList = [] as [Recipe]
+    @Previewable @State var recipeList = [Recipe(name: "Test", serves: 4, description: "A test", tools: ["Pan"], method: ["Step one", "Step two"])]
     @Previewable @State var favourites = Favourites()
-    @Previewable @State var recipe = Recipe()
+    @Previewable @State var navPath = NavigationPath()
 
-    
-    RecipeDetailView(recipeList: $recipeList, favourites: $favourites, recipe: $recipe)
+    NavigationStack {
+        RecipeDetailView(recipeList: $recipeList, favourites: $favourites, navPath: $navPath, index: 0)
+    }
 }
-
